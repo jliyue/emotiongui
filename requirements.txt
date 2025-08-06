@@ -6,3 +6,4 @@ streamlit-autorefresh
 kaleido
 streamlit-plotly-events
 streamlit-drawable-canvas
+Pillow
