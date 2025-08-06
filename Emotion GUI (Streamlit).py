@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - FINAL FIXED CANVAS VERSION
+# STREAMLIT EMOTION LOGGER - FINAL VERSION WITH BASE64 IMAGE URL
 import streamlit as st
 import os
 import random
@@ -9,14 +9,14 @@ from datetime import timedelta
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 from streamlit_autorefresh import st_autorefresh
+import base64
 import io
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
-BACKGROUND_IMAGE_PATH = "photo.png"  # Must be present in the app folder
-
+BACKGROUND_IMAGE_PATH = "photo.png"  # Your emotion grid file
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Canvas with Fixed Image)")
+st.title("🎧 Arousal-Valence Emotion Logger (Canvas + Image Background)")
 
 # ---------------- SESSION STATE INIT ----------------
 for key, default in {
@@ -103,10 +103,15 @@ if not os.path.exists(BACKGROUND_IMAGE_PATH):
     st.error(f"Missing background image: {BACKGROUND_IMAGE_PATH}")
     st.stop()
 
+# Load image bytes and convert to base64
 with open(BACKGROUND_IMAGE_PATH, "rb") as f:
     image_bytes = f.read()
+image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+image_url = f"data:image/png;base64,{image_base64}"
 
-image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+# Load with PIL to get dimensions
+image = Image.open(io.BytesIO(image_bytes))
+image_width, image_height = image.size
 
 # ---------------- CANVAS ----------------
 st.markdown("### 🎨 Click Anywhere on the Grid to Log an Emotion")
@@ -115,9 +120,10 @@ canvas_result = st_canvas(
     fill_color="rgba(0, 0, 0, 0)",  # Transparent
     stroke_width=0,
     background_image=image,
+    background_image_url=image_url,  # ✅ Use base64-encoded image
     update_streamlit=True,
-    height=image.height,
-    width=image.width,
+    height=image_height,
+    width=image_width,
     drawing_mode="point",
     key="emotion_canvas"
 )
@@ -130,8 +136,8 @@ if canvas_result.json_data and st.session_state.logging_enabled:
         x_px = last_point["left"]
         y_px = last_point["top"]
 
-        valence = round((x_px / image.width) * 2 - 1, 2)
-        arousal = round(-((y_px / image.height) * 2 - 1), 2)  # Flip Y-axis
+        valence = round((x_px / image_width) * 2 - 1, 2)
+        arousal = round(-((y_px / image_height) * 2 - 1), 2)
 
         t = format_duration(time.time() - st.session_state.logging_start_time)
         q = get_quadrant(valence, arousal)
