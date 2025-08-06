@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - CLICK-FIXED VERSION FOR STREAMLIT CLOUD
+# STREAMLIT EMOTION LOGGER - DEBUG VERSION WITH VISIBLE CLICK DOTS
 import streamlit as st
 import os
 import random
@@ -16,7 +16,7 @@ SONG_DURATION = 180  # in seconds
 
 # ---------------- SESSION STATE ----------------
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Real-Time + Export)")
+st.title("🎧 Arousal-Valence Emotion Logger (Debug Click Grid)")
 
 for key, default in {
     "played_songs": [],
@@ -126,7 +126,7 @@ for label, angle in labels:
     y = r * np.sin(np.radians(angle))
     fig.add_trace(go.Scatter(x=[x], y=[y], text=[label], mode="text"))
 
-# ✅ SUPER-DENSE, CLICKABLE GRID
+# ✅ VISIBLE DEBUG GRID — RED DOTS
 x_vals = np.linspace(-1, 1, 80)
 y_vals = np.linspace(-1, 1, 80)
 xx, yy = np.meshgrid(x_vals, y_vals)
@@ -134,7 +134,7 @@ click_grid = go.Scatter(
     x=xx.flatten(),
     y=yy.flatten(),
     mode="markers",
-    marker=dict(size=14, opacity=0.2, color="rgba(0,0,0,0.2)"),
+    marker=dict(size=12, color="red", opacity=1),
     hoverinfo="none",
     name="Click Grid",
     showlegend=False
@@ -168,7 +168,7 @@ fig.update_layout(
 
 # DISPLAY PLOT & CAPTURE CLICKS
 results = plotly_events(fig, click_event=True)
-st.write("📌 Debug Click Results:", results)  # Shows [x, y] if working
+st.write("📌 Debug Click Results:", results)  # ← This should show a list of click dicts
 
 # ---------------- LOGGING CLICKS ----------------
 if results and st.session_state.logging_enabled:
@@ -179,7 +179,6 @@ if results and st.session_state.logging_enabled:
         q = get_quadrant(x, y)
         st.session_state.emotions.append((t, st.session_state.current_song, x, y, q))
         st.toast(f"✅ Logged at {t} — Quadrant: {q}", icon="🟢")
-        # No rerun — session state persists
     except Exception as e:
         st.error(f"❌ Error logging click: {e}")
 
