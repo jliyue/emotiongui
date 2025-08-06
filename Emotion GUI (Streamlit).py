@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER — FINAL FIXED VERSION USING background_image=
+# STREAMLIT EMOTION LOGGER — FINAL STABLE VERSION WITH PIL IMAGE AND DOTS
 import streamlit as st
 import os
 import random
@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw
 AUDIO_FOLDER = "song"
 BACKGROUND_IMAGE_PATH = "photo.png"
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Canvas with Dots)")
+st.title("🎧 Arousal-Valence Emotion Logger (Stable Canvas + Dots)")
 
 # ---------------- SESSION STATE INIT ----------------
 for key, default in {
@@ -104,7 +104,7 @@ if not os.path.exists(BACKGROUND_IMAGE_PATH):
 image = Image.open(BACKGROUND_IMAGE_PATH).convert("RGBA")
 image_width, image_height = image.size
 
-# Draw dots directly on the image
+# Draw red dots onto the image
 image_with_dots = image.copy()
 draw = ImageDraw.Draw(image_with_dots)
 dot_radius = 4
@@ -120,7 +120,7 @@ st.markdown("### 🎨 Click to Log Emotion")
 canvas_result = st_canvas(
     fill_color="rgba(0, 0, 0, 0)",
     stroke_width=0,
-    background_image=image_with_dots,  # ✅ Only this now!
+    background_image=image_with_dots,  # ✅ Only PIL image passed
     update_streamlit=True,
     height=image_height,
     width=image_width,
@@ -142,7 +142,6 @@ if canvas_result.json_data and st.session_state.logging_enabled:
         t = format_duration(time.time() - st.session_state.logging_start_time)
         q = get_quadrant(valence, arousal)
 
-        # Prevent double logging
         if len(st.session_state.emotions) == 0 or (valence, arousal) != (st.session_state.emotions[-1][2], st.session_state.emotions[-1][3]):
             st.session_state.emotions.append((t, st.session_state.current_song, valence, arousal, q))
             st.toast(f"✅ Logged: Valence={valence}, Arousal={arousal}, Quadrant={q}")
