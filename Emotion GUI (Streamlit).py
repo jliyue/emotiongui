@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - CANVAS VERSION WITH EMOTION GRID BACKGROUND
+# STREAMLIT EMOTION LOGGER - CANVAS VERSION WITH RGBA FIXED IMAGE
 import streamlit as st
 import os
 import random
@@ -12,9 +12,7 @@ from streamlit_autorefresh import st_autorefresh
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
-BACKGROUND_IMAGE_PATH = "photo.png"  
-CANVAS_SIZE = 500  # Will be updated based on image size
-
+BACKGROUND_IMAGE_PATH = "photo.png"  # Your image file
 st.set_page_config(layout="wide")
 st.title("🎧 Arousal-Valence Emotion Logger (Canvas + Grid Background)")
 
@@ -103,7 +101,8 @@ if not os.path.exists(BACKGROUND_IMAGE_PATH):
     st.error(f"Missing background image: {BACKGROUND_IMAGE_PATH}")
     st.stop()
 
-image = Image.open(BACKGROUND_IMAGE_PATH)
+# 🔧 Fix: Convert image to RGBA to prevent canvas error
+image = Image.open(BACKGROUND_IMAGE_PATH).convert("RGBA")
 
 # ---------------- CANVAS ----------------
 st.markdown("### 🎨 Click Anywhere on the Grid to Log an Emotion")
