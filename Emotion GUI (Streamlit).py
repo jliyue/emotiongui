@@ -11,7 +11,7 @@ from streamlit_plotly_events import plotly_events
 import plotly.io as pio
 
 # ---------------- CONFIG ----------------
-AUDIO_FOLDER = "songs"
+AUDIO_FOLDER = "song"
 EXPORT_FOLDER = "exports"
 SONG_DURATION = 180  # in seconds
 
