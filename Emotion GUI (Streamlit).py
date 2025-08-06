@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - ENHANCED VERSION FOR STREAMLIT CLOUD
+# STREAMLIT EMOTION LOGGER - FIXED CLICKABLE GRID VERSION
 import streamlit as st
 import os
 import random
@@ -126,7 +126,7 @@ for label, angle in labels:
     y = r * np.sin(np.radians(angle))
     fig.add_trace(go.Scatter(x=[x], y=[y], text=[label], mode="text"))
 
-# FULLY CLICKABLE INVISIBLE GRID
+# ✅ FIXED: Clickable grid that registers clicks
 x_vals = np.linspace(-1, 1, 40)
 y_vals = np.linspace(-1, 1, 40)
 xx, yy = np.meshgrid(x_vals, y_vals)
@@ -134,9 +134,10 @@ click_grid = go.Scatter(
     x=xx.flatten(),
     y=yy.flatten(),
     mode="markers",
-    marker=dict(size=6, opacity=0.001, color="rgba(0,0,0,0)"),
-    hoverinfo="skip",
-    name="Click Grid"
+    marker=dict(size=10, opacity=0.1, color="rgba(0,0,0,0.1)"),
+    hoverinfo="none",
+    name="Click Grid",
+    showlegend=False
 )
 fig.add_trace(click_grid)
 
