@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - CANVAS VERSION WITH RGBA FIXED IMAGE
+# STREAMLIT EMOTION LOGGER - FINAL FIXED CANVAS VERSION
 import streamlit as st
 import os
 import random
@@ -7,24 +7,16 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from PIL import Image
-import io
-import streamlit.components.v1 as components
-
-# Load the image as a binary stream and reopen it
-with open("av_grid.png", "rb") as f:
-    image_bytes = f.read()
-
-# Re-open and convert to RGBA
-image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
-
 from streamlit_drawable_canvas import st_canvas
 from streamlit_autorefresh import st_autorefresh
+import io
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
-BACKGROUND_IMAGE_PATH = "photo.png"  # Your image file
+BACKGROUND_IMAGE_PATH = "photo.png"  # Must be present in the app folder
+
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Canvas + Grid Background)")
+st.title("🎧 Arousal-Valence Emotion Logger (Canvas with Fixed Image)")
 
 # ---------------- SESSION STATE INIT ----------------
 for key, default in {
@@ -106,22 +98,18 @@ if st.session_state.logging_enabled and st.session_state.logging_start_time:
 else:
     st.markdown("🔴 **Logging Inactive**")
 
-# ---------------- LOAD BACKGROUND IMAGE ----------------
+# ---------------- LOAD BACKGROUND IMAGE SAFELY ----------------
 if not os.path.exists(BACKGROUND_IMAGE_PATH):
     st.error(f"Missing background image: {BACKGROUND_IMAGE_PATH}")
     st.stop()
 
-# 🔧 Fix: Convert image to RGBA to prevent canvas error
-image = Image.open(BACKGROUND_IMAGE_PATH).convert("RGBA")
+with open(BACKGROUND_IMAGE_PATH, "rb") as f:
+    image_bytes = f.read()
+
+image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
 # ---------------- CANVAS ----------------
 st.markdown("### 🎨 Click Anywhere on the Grid to Log an Emotion")
-
-with open("photo.png", "rb") as f:
-    image_bytes = f.read()
-
-# Re-open and convert to RGBA
-image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
 canvas_result = st_canvas(
     fill_color="rgba(0, 0, 0, 0)",  # Transparent
