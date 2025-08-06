@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - FIXED CLICKABLE GRID VERSION
+# STREAMLIT EMOTION LOGGER - FINAL SMOOTH VERSION
 import streamlit as st
 import os
 import random
@@ -126,7 +126,7 @@ for label, angle in labels:
     y = r * np.sin(np.radians(angle))
     fig.add_trace(go.Scatter(x=[x], y=[y], text=[label], mode="text"))
 
-# ✅ FIXED: Clickable grid that registers clicks
+# FIXED: Clickable grid that registers clicks
 x_vals = np.linspace(-1, 1, 40)
 y_vals = np.linspace(-1, 1, 40)
 xx, yy = np.meshgrid(x_vals, y_vals)
@@ -168,7 +168,6 @@ fig.update_layout(
 
 # DISPLAY PLOT & CAPTURE CLICKS
 results = plotly_events(fig, click_event=True)
-st.write("📌 Raw click results:", results)  # Debugging — remove if not needed
 
 # ---------------- LOGGING CLICKS ----------------
 if results and st.session_state.logging_enabled:
@@ -179,7 +178,7 @@ if results and st.session_state.logging_enabled:
         q = get_quadrant(x, y)
         st.session_state.emotions.append((t, st.session_state.current_song, x, y, q))
         st.toast(f"✅ Logged at {t} — Quadrant: {q}", icon="🟢")
-        st.experimental_rerun()
+        # ✅ No rerun needed — smooth state update
     except Exception as e:
         st.error(f"❌ Error logging click: {e}")
 
@@ -187,22 +186,27 @@ if results and st.session_state.logging_enabled:
 st.markdown("---")
 st.markdown("### 📁 Export Emotion Data")
 
-if not st.session_state.emotions:
-    st.info("ℹ️ No data logged yet.")
-else:
-    st.success(f"✅ You’ve logged {len(st.session_state.emotions)} emotion(s)")
+df = pd.DataFrame(
+    st.session_state.emotions,
+    columns=["Time", "Song", "Valence", "Arousal", "Quadrant"]
+)
 
-    with st.expander("⬇️ Download Logged Data", expanded=True):
-        df = pd.DataFrame(
-            st.session_state.emotions,
-            columns=["Time", "Song", "Valence", "Arousal", "Quadrant"]
-        )
+st.dataframe(df, use_container_width=True)
 
-        filename_base = os.path.splitext(st.session_state.current_song)[0]
-        csv_data = df.to_csv(index=False).encode("utf-8")
-        st.download_button("⬇️ Download CSV", csv_data, file_name=f"{filename_base}_emotions.csv", mime="text/csv")
+filename_base = os.path.splitext(st.session_state.current_song)[0] if st.session_state.current_song else "session"
+csv_data = df.to_csv(index=False).encode("utf-8")
 
-        st.info("🖼️ Emotion map image export is disabled for now.")
+st.download_button(
+    label="⬇️ Download CSV",
+    data=csv_data,
+    file_name=f"{filename_base}_emotions.csv",
+    mime="text/csv",
+    disabled=df.empty,
+    help="Download the logged emotion data as a CSV file"
+)
+
+if df.empty:
+    st.info("ℹ️ No data yet — click on the chart to log an emotion.")
 
 # ---------------- NEXT SONG BUTTON ----------------
 if st.session_state.current_song and len(st.session_state.played_songs) < len(songs):
