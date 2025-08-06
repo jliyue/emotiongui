@@ -1,22 +1,22 @@
-# STREAMLIT EMOTION LOGGER — FINAL STABLE VERSION WITH PIL IMAGE AND DOTS
+# STREAMLIT EMOTION LOGGER — STABLE IMAGE CLICK VERSION
 import streamlit as st
 import os
 import random
 import time
 import pandas as pd
-import numpy as np
 from datetime import timedelta
-from streamlit_drawable_canvas import st_canvas
-from streamlit_autorefresh import st_autorefresh
 from PIL import Image, ImageDraw
+from streamlit_autorefresh import st_autorefresh
+from streamlit_image_coordinates import streamlit_image_coordinates
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
-BACKGROUND_IMAGE_PATH = "photo.png"
+IMAGE_FILE = "photo.png"
+DOT_RADIUS = 5
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Stable Canvas + Dots)")
+st.title("🎧 Arousal-Valence Emotion Logger (No Canvas, Image-Based)")
 
-# ---------------- SESSION STATE INIT ----------------
+# ---------------- SESSION STATE ----------------
 for key, default in {
     "played_songs": [],
     "current_song": None,
@@ -47,7 +47,7 @@ def get_quadrant(x, y):
 # ---------------- PARTICIPANT ID ----------------
 st.session_state.participant_id = st.text_input("Enter Participant ID:", st.session_state.participant_id)
 
-# ---------------- SONG LOAD ----------------
+# ---------------- SONG SELECTION ----------------
 if not os.path.exists(AUDIO_FOLDER):
     st.error(f"Missing audio folder: {AUDIO_FOLDER}")
     st.stop()
@@ -59,20 +59,18 @@ if not st.session_state.current_song and remaining:
     song = random.choice(remaining)
     st.session_state.current_song = song
     st.session_state.song_start_time = time.time()
+    st.session_state.emotions = []
     st.session_state.logging_enabled = False
     st.session_state.logging_start_time = None
-    st.session_state.emotions = []
 
 # ---------------- AUDIO ----------------
 if st.session_state.current_song:
     st.markdown(f"### 🎶 Now Playing: `{st.session_state.current_song}`")
     with open(os.path.join(AUDIO_FOLDER, st.session_state.current_song), "rb") as f:
-        audio_bytes = f.read()
-    st.audio(audio_bytes, format="audio/mp3")
-    elapsed = time.time() - st.session_state.song_start_time
-    st.success(f"🎵 Playing — Time elapsed: {int(elapsed)}s")
+        st.audio(f.read(), format="audio/mp3")
+    st.success(f"🎵 Playing — Time elapsed: {int(time.time() - st.session_state.song_start_time)}s")
 
-# ---------------- START / STOP LOGGING ----------------
+# ---------------- LOGGING CONTROLS ----------------
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("▶️ Start Logging"):
@@ -82,94 +80,68 @@ with col1:
 with col2:
     if st.button("⏹ Stop Logging"):
         st.session_state.logging_enabled = False
-        st.toast("⏹ Logging stopped.", icon="🔴")
+        st.toast("🛑 Logging stopped.")
 with col3:
     if st.button("🧹 Reset Log"):
         st.session_state.emotions = []
-        st.toast("🧽 Emotion log cleared")
+        st.toast("🧽 Cleared all logs.")
 
-# ---------------- TIMER ----------------
-if st.session_state.logging_enabled and st.session_state.logging_start_time:
+if st.session_state.logging_enabled:
     elapsed = time.time() - st.session_state.logging_start_time
-    st_autorefresh(interval=1000, key="logging_refresh")
-    st.markdown(f"🟢 **Logging Active** — Duration: `{format_duration(elapsed)}`")
+    st_autorefresh(interval=1000, key="refresh_timer")
+    st.markdown(f"🟢 Logging Active — Duration: `{format_duration(elapsed)}`")
 else:
-    st.markdown("🔴 **Logging Inactive**")
+    st.markdown("🔴 Logging Inactive")
 
-# ---------------- LOAD IMAGE AND DRAW DOTS ----------------
-if not os.path.exists(BACKGROUND_IMAGE_PATH):
-    st.error(f"Missing background image: {BACKGROUND_IMAGE_PATH}")
+# ---------------- IMAGE + CLICK ----------------
+if not os.path.exists(IMAGE_FILE):
+    st.error(f"Missing image: {IMAGE_FILE}")
     st.stop()
 
-image = Image.open(BACKGROUND_IMAGE_PATH).convert("RGBA")
+image = Image.open(IMAGE_FILE).convert("RGBA")
 image_width, image_height = image.size
 
-# Draw red dots onto the image
-image_with_dots = image.copy()
-draw = ImageDraw.Draw(image_with_dots)
-dot_radius = 4
-
+# Draw red dots on a copy
+display_image = image.copy()
+draw = ImageDraw.Draw(display_image)
 for _, _, val, aro, _ in st.session_state.emotions:
     x = int((val + 1) / 2 * image_width)
-    y = int((1 - ((aro + 1) / 2)) * image_height)
-    draw.ellipse((x - dot_radius, y - dot_radius, x + dot_radius, y + dot_radius), fill="red")
+    y = int((1 - (aro + 1) / 2) * image_height)
+    draw.ellipse([x - DOT_RADIUS, y - DOT_RADIUS, x + DOT_RADIUS, y + DOT_RADIUS], fill="red")
 
-# ---------------- CANVAS ----------------
-st.markdown("### 🎨 Click to Log Emotion")
+# Click detection via streamlit-image-coordinates
+st.markdown("### 🎯 Click the grid to log emotion")
+coords = streamlit_image_coordinates(display_image, key="avgrid")
 
-canvas_result = st_canvas(
-    fill_color="rgba(0, 0, 0, 0)",
-    stroke_width=0,
-    background_image=image_with_dots,  # ✅ Only PIL image passed
-    update_streamlit=True,
-    height=image_height,
-    width=image_width,
-    drawing_mode="point",
-    key="emotion_canvas"
-)
+if coords and st.session_state.logging_enabled:
+    x_px, y_px = coords["x"], coords["y"]
+    val = round((x_px / image_width) * 2 - 1, 2)
+    aro = round(-((y_px / image_height) * 2 - 1), 2)
+    t = format_duration(time.time() - st.session_state.logging_start_time)
+    q = get_quadrant(val, aro)
+    st.session_state.emotions.append((t, st.session_state.current_song, val, aro, q))
+    st.toast(f"✅ Logged: Val={val}, Aro={aro}, Quadrant={q}")
 
-# ---------------- HANDLE NEW CLICKS ----------------
-if canvas_result.json_data and st.session_state.logging_enabled:
-    objects = canvas_result.json_data["objects"]
-    if objects:
-        last_point = objects[-1]
-        x_px = last_point["left"]
-        y_px = last_point["top"]
-
-        valence = round((x_px / image_width) * 2 - 1, 2)
-        arousal = round(-((y_px / image_height) * 2 - 1), 2)
-
-        t = format_duration(time.time() - st.session_state.logging_start_time)
-        q = get_quadrant(valence, arousal)
-
-        if len(st.session_state.emotions) == 0 or (valence, arousal) != (st.session_state.emotions[-1][2], st.session_state.emotions[-1][3]):
-            st.session_state.emotions.append((t, st.session_state.current_song, valence, arousal, q))
-            st.toast(f"✅ Logged: Valence={valence}, Arousal={arousal}, Quadrant={q}")
-
-# ---------------- EXPORT SECTION ----------------
+# ---------------- EXPORT LOGS ----------------
 st.markdown("---")
-st.markdown("### 📁 Logged Emotions")
-
 df = pd.DataFrame(
     st.session_state.emotions,
     columns=["Time", "Song", "Valence", "Arousal", "Quadrant"]
 )
-
+st.markdown("### 📁 Logged Emotions")
 st.dataframe(df, use_container_width=True)
 
-filename_base = os.path.splitext(st.session_state.current_song)[0] if st.session_state.current_song else "session"
-csv_data = df.to_csv(index=False).encode("utf-8")
-
+filename_base = os.path.splitext(st.session_state.current_song)[0]
 st.download_button(
     label="⬇️ Download CSV",
-    data=csv_data,
+    data=df.to_csv(index=False).encode("utf-8"),
     file_name=f"{filename_base}_emotions.csv",
     mime="text/csv",
     disabled=df.empty
 )
 
 # ---------------- NEXT SONG ----------------
-if st.session_state.current_song and len(st.session_state.played_songs) < len(songs):
+if len(st.session_state.played_songs) < len(songs):
     if st.button("▶️ Next Song"):
         st.session_state.played_songs.append(st.session_state.current_song)
         st.session_state.current_song = None
