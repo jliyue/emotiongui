@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - FINAL VERSION WITH BASE64 IMAGE URL
+# STREAMLIT EMOTION LOGGER - FINAL VERSION WITH DOTS + IMAGE BACKGROUND
 import streamlit as st
 import os
 import random
@@ -6,17 +6,16 @@ import time
 import pandas as pd
 import numpy as np
 from datetime import timedelta
-from PIL import Image
+from PIL import Image, ImageDraw
 from streamlit_drawable_canvas import st_canvas
 from streamlit_autorefresh import st_autorefresh
-import base64
 import io
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
-BACKGROUND_IMAGE_PATH = "photo.png"  # Your emotion grid file
+BACKGROUND_IMAGE_PATH = "photo.png"
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Canvas + Image Background)")
+st.title("🎧 Arousal-Valence Emotion Logger (Canvas with Grid + Dots)")
 
 # ---------------- SESSION STATE INIT ----------------
 for key, default in {
@@ -98,29 +97,34 @@ if st.session_state.logging_enabled and st.session_state.logging_start_time:
 else:
     st.markdown("🔴 **Logging Inactive**")
 
-# ---------------- LOAD BACKGROUND IMAGE SAFELY ----------------
+# ---------------- LOAD BACKGROUND IMAGE ----------------
 if not os.path.exists(BACKGROUND_IMAGE_PATH):
     st.error(f"Missing background image: {BACKGROUND_IMAGE_PATH}")
     st.stop()
 
-# Load image bytes and convert to base64
 with open(BACKGROUND_IMAGE_PATH, "rb") as f:
     image_bytes = f.read()
-image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-image_url = f"data:image/png;base64,{image_base64}"
 
-# Load with PIL to get dimensions
-image = Image.open(io.BytesIO(image_bytes))
+image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 image_width, image_height = image.size
 
+# ---------------- DRAW DOTS ON IMAGE ----------------
+display_image = image.copy()
+draw = ImageDraw.Draw(display_image)
+dot_radius = 4
+
+for _, _, val, aro, _ in st.session_state.emotions:
+    x = int((val + 1) / 2 * image_width)
+    y = int((1 - (aro + 1) / 2) * image_height)
+    draw.ellipse((x - dot_radius, y - dot_radius, x + dot_radius, y + dot_radius), fill="red")
+
 # ---------------- CANVAS ----------------
-st.markdown("### 🎨 Click Anywhere on the Grid to Log an Emotion")
+st.markdown("### 🎨 Click on the Grid to Log Emotion")
 
 canvas_result = st_canvas(
-    fill_color="rgba(0, 0, 0, 0)",  # Transparent
+    fill_color="rgba(0, 0, 0, 0)",
     stroke_width=0,
-    background_image=image,
-    background_image_url=image_url,  # ✅ Use base64-encoded image
+    background_image=display_image,
     update_streamlit=True,
     height=image_height,
     width=image_width,
