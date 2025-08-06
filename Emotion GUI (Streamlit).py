@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - OPTIMIZED VERSION FOR STREAMLIT CLOUD
+# STREAMLIT EMOTION LOGGER - ENHANCED VERSION FOR STREAMLIT CLOUD
 import streamlit as st
 import os
 import random
@@ -8,6 +8,7 @@ import numpy as np
 from datetime import timedelta
 import plotly.graph_objects as go
 from streamlit_plotly_events import plotly_events
+from streamlit_autorefresh import st_autorefresh
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
@@ -79,7 +80,7 @@ if st.session_state.current_song:
     st.success(f"🎵 Playing — Time elapsed: {int(elapsed)}s")
 
 # ---------------- START / STOP LOGGING ----------------
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("▶️ Start Logging"):
         st.session_state.logging_enabled = True
@@ -91,6 +92,11 @@ with col2:
         st.session_state.logging_enabled = False
         st.toast("⏹ Logging stopped.", icon="🔴")
 
+with col3:
+    if st.button("🧹 Reset Emotions Log"):
+        st.session_state.emotions = []
+        st.toast("🗑️ Emotion log cleared.", icon="⚪️")
+
 # ---------------- LOGGING STATUS ----------------
 if st.session_state.logging_enabled and st.session_state.logging_start_time:
     elapsed_log = time.time() - st.session_state.logging_start_time
@@ -98,13 +104,11 @@ if st.session_state.logging_enabled and st.session_state.logging_start_time:
     st.markdown(f"🟢 **Logging Active** — Duration: `{format_duration(elapsed_log)}`")
 else:
     st.markdown("🔴 **Logging Inactive** — Press 'Start Logging' to begin.")
-# Refresh every 1 second while logging is active
-
 
 # ---------------- EMOTION LOGGER PLOT ----------------
 fig = go.Figure()
 
-# Quadrants + labels
+# Quadrants
 fig.add_shape(type="rect", x0=0, y0=0, x1=1, y1=1, fillcolor="green", opacity=0.3, line=dict(width=0))
 fig.add_shape(type="rect", x0=-1, y0=0, x1=0, y1=1, fillcolor="yellow", opacity=0.3, line=dict(width=0))
 fig.add_shape(type="rect", x0=-1, y0=-1, x1=0, y1=0, fillcolor="red", opacity=0.3, line=dict(width=0))
@@ -112,6 +116,7 @@ fig.add_shape(type="rect", x0=0, y0=-1, x1=1, y1=0, fillcolor="blue", opacity=0.
 fig.add_shape(type="line", x0=-1, y0=0, x1=1, y1=0, line=dict(color="black", width=2))
 fig.add_shape(type="line", x0=0, y0=-1, x1=0, y1=1, line=dict(color="black", width=2))
 
+# Emotion labels
 labels = [("Excited", 67), ("Delighted", 45), ("Happy", 22), ("Content", -22),
           ("Relaxed", -45), ("Calm", -67), ("Tired", -113), ("Bored", -135),
           ("Depressed", -158), ("Frustrated", 158), ("Angry", 135), ("Tense", 113)]
@@ -121,15 +126,19 @@ for label, angle in labels:
     y = r * np.sin(np.radians(angle))
     fig.add_trace(go.Scatter(x=[x], y=[y], text=[label], mode="text"))
 
-# Transparent clickable layer
-fig.add_trace(go.Scatter(
-    x=[-1, -0.5, 0, 0.5, 1],
-    y=[-1, 0, 1, 0, -1],
+# FULLY CLICKABLE INVISIBLE GRID
+x_vals = np.linspace(-1, 1, 40)
+y_vals = np.linspace(-1, 1, 40)
+xx, yy = np.meshgrid(x_vals, y_vals)
+click_grid = go.Scatter(
+    x=xx.flatten(),
+    y=yy.flatten(),
     mode="markers",
-    marker=dict(size=1, opacity=0),
-    hoverinfo='skip',
-    showlegend=False
-))
+    marker=dict(size=6, opacity=0.001, color="rgba(0,0,0,0)"),
+    hoverinfo="skip",
+    name="Click Grid"
+)
+fig.add_trace(click_grid)
 
 # Logged points
 if st.session_state.emotions:
@@ -140,7 +149,8 @@ if st.session_state.emotions:
     fig.add_trace(go.Scatter(
         x=df["Valence"],
         y=df["Arousal"],
-        mode="markers",
+        mode="markers+text",
+        text=df["Time"],
         marker=dict(size=10, color="black"),
         name="Logged Emotions"
     ))
@@ -155,7 +165,9 @@ fig.update_layout(
     title="Click to Log Emotions"
 )
 
+# DISPLAY PLOT & CAPTURE CLICKS
 results = plotly_events(fig, click_event=True)
+st.write("📌 Raw click results:", results)  # Debugging — remove if not needed
 
 # ---------------- LOGGING CLICKS ----------------
 if results and st.session_state.logging_enabled:
@@ -165,8 +177,8 @@ if results and st.session_state.logging_enabled:
         t = format_duration(log_time)
         q = get_quadrant(x, y)
         st.session_state.emotions.append((t, st.session_state.current_song, x, y, q))
-        st.toast("✅ Logged!", icon="🟢")
-        st.experimental_rerun()  # <- Refresh to show updated points
+        st.toast(f"✅ Logged at {t} — Quadrant: {q}", icon="🟢")
+        st.experimental_rerun()
     except Exception as e:
         st.error(f"❌ Error logging click: {e}")
 
@@ -186,18 +198,15 @@ else:
         )
 
         filename_base = os.path.splitext(st.session_state.current_song)[0]
-
-        # Generate CSV in memory
         csv_data = df.to_csv(index=False).encode("utf-8")
         st.download_button("⬇️ Download CSV", csv_data, file_name=f"{filename_base}_emotions.csv", mime="text/csv")
 
-        # (Optional) Skip image export to avoid Streamlit Cloud issues
         st.info("🖼️ Emotion map image export is disabled for now.")
 
 # ---------------- NEXT SONG BUTTON ----------------
 if st.session_state.current_song and len(st.session_state.played_songs) < len(songs):
     if st.button("▶️ Next Song"):
-        st.session_state.played_songs.append(st.session_state.current_song)  # Add to history
+        st.session_state.played_songs.append(st.session_state.current_song)
         st.session_state.current_song = None
         st.session_state.emotions = []
         st.session_state.logging_enabled = False
