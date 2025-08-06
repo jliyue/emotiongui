@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER — FINAL VERSION USING BASE64 IMAGE URL ONLY
+# STREAMLIT EMOTION LOGGER — FINAL FIXED VERSION USING background_image=
 import streamlit as st
 import os
 import random
@@ -9,14 +9,12 @@ from datetime import timedelta
 from streamlit_drawable_canvas import st_canvas
 from streamlit_autorefresh import st_autorefresh
 from PIL import Image, ImageDraw
-import io
-import base64
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
 BACKGROUND_IMAGE_PATH = "photo.png"
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Base64 Canvas + Dots)")
+st.title("🎧 Arousal-Valence Emotion Logger (Canvas with Dots)")
 
 # ---------------- SESSION STATE INIT ----------------
 for key, default in {
@@ -103,11 +101,10 @@ if not os.path.exists(BACKGROUND_IMAGE_PATH):
     st.error(f"Missing background image: {BACKGROUND_IMAGE_PATH}")
     st.stop()
 
-# Load and convert image
 image = Image.open(BACKGROUND_IMAGE_PATH).convert("RGBA")
 image_width, image_height = image.size
 
-# Draw red dots onto the image
+# Draw dots directly on the image
 image_with_dots = image.copy()
 draw = ImageDraw.Draw(image_with_dots)
 dot_radius = 4
@@ -117,19 +114,13 @@ for _, _, val, aro, _ in st.session_state.emotions:
     y = int((1 - ((aro + 1) / 2)) * image_height)
     draw.ellipse((x - dot_radius, y - dot_radius, x + dot_radius, y + dot_radius), fill="red")
 
-# Encode the modified image to base64
-buf = io.BytesIO()
-image_with_dots.save(buf, format="PNG")
-base64_img = base64.b64encode(buf.getvalue()).decode("utf-8")
-image_url = f"data:image/png;base64,{base64_img}"
-
 # ---------------- CANVAS ----------------
 st.markdown("### 🎨 Click to Log Emotion")
 
 canvas_result = st_canvas(
     fill_color="rgba(0, 0, 0, 0)",
     stroke_width=0,
-    background_image_url=image_url,  # ✅ Only using base64 image
+    background_image=image_with_dots,  # ✅ Only this now!
     update_streamlit=True,
     height=image_height,
     width=image_width,
@@ -151,6 +142,7 @@ if canvas_result.json_data and st.session_state.logging_enabled:
         t = format_duration(time.time() - st.session_state.logging_start_time)
         q = get_quadrant(valence, arousal)
 
+        # Prevent double logging
         if len(st.session_state.emotions) == 0 or (valence, arousal) != (st.session_state.emotions[-1][2], st.session_state.emotions[-1][3]):
             st.session_state.emotions.append((t, st.session_state.current_song, valence, arousal, q))
             st.toast(f"✅ Logged: Valence={valence}, Arousal={arousal}, Quadrant={q}")
