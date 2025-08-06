@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - OPTIMIZED VERSION WITH PER-SONG SAVE & FASTER LOGGING + FIXED CLICK/TIMER
+# STREAMLIT EMOTION LOGGER - OPTIMIZED VERSION FOR STREAMLIT CLOUD
 import streamlit as st
 import os
 import random
@@ -8,14 +8,10 @@ import numpy as np
 from datetime import timedelta
 import plotly.graph_objects as go
 from streamlit_plotly_events import plotly_events
-import plotly.io as pio
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
-EXPORT_FOLDER = "exports"
 SONG_DURATION = 180  # in seconds
-
-os.makedirs(EXPORT_FOLDER, exist_ok=True)
 
 # ---------------- SESSION STATE ----------------
 st.set_page_config(layout="wide")
@@ -95,7 +91,7 @@ with col2:
         st.session_state.logging_enabled = False
         st.toast("⏹ Logging stopped.", icon="🔴")
 
-# Show logging status and live timer
+# ---------------- LOGGING STATUS ----------------
 if st.session_state.logging_enabled and st.session_state.logging_start_time:
     elapsed_log = time.time() - st.session_state.logging_start_time
     st.markdown(f"🟢 **Logging Active** — Duration: `{format_duration(elapsed_log)}`")
@@ -160,7 +156,6 @@ results = plotly_events(fig, click_event=True)
 
 # ---------------- LOGGING CLICKS ----------------
 if results and st.session_state.logging_enabled:
-    st.write("📌 Click results:", results)
     try:
         x, y = results[0]["x"], results[0]["y"]
         log_time = time.time() - st.session_state.logging_start_time
@@ -168,7 +163,7 @@ if results and st.session_state.logging_enabled:
         q = get_quadrant(x, y)
         st.session_state.emotions.append((t, st.session_state.current_song, x, y, q))
         st.toast("✅ Logged!", icon="🟢")
-        st.write("📊 Logged emotions:", st.session_state.emotions)
+        st.experimental_rerun()  # <- Refresh to show updated points
     except Exception as e:
         st.error(f"❌ Error logging click: {e}")
 
@@ -177,7 +172,7 @@ st.markdown("---")
 st.markdown("### 📁 Export Emotion Data")
 
 if not st.session_state.emotions:
-    st.info("ℹ️ No data logged yet. Click on the plot or use the sliders to begin.")
+    st.info("ℹ️ No data logged yet.")
 else:
     st.success(f"✅ You’ve logged {len(st.session_state.emotions)} emotion(s)")
 
@@ -188,24 +183,22 @@ else:
         )
 
         filename_base = os.path.splitext(st.session_state.current_song)[0]
-        filename_csv = os.path.join(EXPORT_FOLDER, f"{filename_base}_emotions.csv")
-        filename_png = os.path.join(EXPORT_FOLDER, f"{filename_base}_emotionmap.png")
 
-        df.to_csv(filename_csv, index=False)
-        pio.write_image(fig, filename_png, format="png", width=600, height=600)
+        # Generate CSV in memory
+        csv_data = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Download CSV", csv_data, file_name=f"{filename_base}_emotions.csv", mime="text/csv")
 
-        st.download_button("⬇️ Download CSV", df.to_csv(index=False), file_name=filename_csv.split("/")[-1], mime="text/csv")
-
-        with open(filename_png, "rb") as f:
-            st.download_button("⬇️ Download Emotion Map (PNG)", f.read(), file_name=filename_png.split("/")[-1], mime="image/png")
+        # (Optional) Skip image export to avoid Streamlit Cloud issues
+        st.info("🖼️ Emotion map image export is disabled for now.")
 
 # ---------------- NEXT SONG BUTTON ----------------
 if st.session_state.current_song and len(st.session_state.played_songs) < len(songs):
     if st.button("▶️ Next Song"):
+        st.session_state.played_songs.append(st.session_state.current_song)  # Add to history
         st.session_state.current_song = None
         st.session_state.emotions = []
         st.session_state.logging_enabled = False
         st.session_state.logging_start_time = None
         st.experimental_rerun()
 elif len(st.session_state.played_songs) >= len(songs):
-    st.success("✅ All 21 songs played!")
+    st.success("✅ All songs played!")
