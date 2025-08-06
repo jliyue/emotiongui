@@ -1,4 +1,4 @@
-# EMOTION LOGGER — Blue Dots, Timer Bar, CSV & PNG Export
+# STREAMLIT EMOTION LOGGER — FINAL VERSION: Audio + Blue Dots + Export + Timer
 import streamlit as st
 import os
 import random
@@ -8,16 +8,17 @@ from datetime import timedelta
 from PIL import Image, ImageDraw
 from streamlit_autorefresh import st_autorefresh
 from streamlit_image_coordinates import streamlit_image_coordinates
+import streamlit.components.v1 as components
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
 IMAGE_FILE = "photo.png"
 EXPORT_FOLDER = "export"
 DOT_RADIUS = 5
-LOG_DURATION = 180  # in seconds
+LOG_DURATION = 180  # seconds
 
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Blue Dots + Timer + Export)")
+st.title("🎧 Arousal-Valence Emotion Logger (Auto Audio + Export)")
 
 # ---------------- SESSION STATE ----------------
 for key, default in {
@@ -60,10 +61,21 @@ def draw_dots(image, emotion_data):
         )
     return image_copy
 
+def play_audio():
+    components.html("""
+        <script>
+            const audio = document.getElementById("audio-player");
+            if (audio) {
+                audio.currentTime = 0;
+                audio.play();
+            }
+        </script>
+    """, height=0)
+
 # ---------------- PARTICIPANT ID ----------------
 st.session_state.participant_id = st.text_input("Enter Participant ID:", st.session_state.participant_id)
 
-# ---------------- SONG SELECTION ----------------
+# ---------------- SONG SETUP ----------------
 if not os.path.exists(AUDIO_FOLDER):
     st.error(f"Missing audio folder: {AUDIO_FOLDER}")
     st.stop()
@@ -79,22 +91,28 @@ if not st.session_state.current_song and remaining:
     st.session_state.logging_start_time = None
     st.session_state.auto_csv_ready = False
 
-# ---------------- AUDIO PLAYER ----------------
+# ---------------- AUDIO PLAYER INJECTION ----------------
 audio_path = os.path.join(AUDIO_FOLDER, st.session_state.current_song)
 st.markdown(f"### 🎶 Now Playing: `{st.session_state.current_song}`")
-with open(audio_path, "rb") as f:
-    st.audio(f.read(), format="audio/mp3")
 
-st.info("ℹ️ Press ▶️ to start audio manually.")
+components.html(f"""
+<audio id="audio-player" controls preload="auto">
+  <source src="{audio_path}" type="audio/mp3">
+  Your browser does not support the audio element.
+</audio>
+""", height=80)
+
+st.info("ℹ️ The audio will start when you click ▶️ Start Logging.")
 
 # ---------------- LOGGING CONTROLS ----------------
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("▶️ Start Logging"):
+    if st.button("▶️ Start Logging + Play Audio"):
         st.session_state.logging_enabled = True
         st.session_state.logging_start_time = time.time()
         st.session_state.auto_csv_ready = False
-        st.toast("✅ Logging started!", icon="🟢")
+        play_audio()
+        st.toast("✅ Logging started & audio playing!", icon="🟢")
 
 with col2:
     if st.button("⏹ Stop Logging"):
@@ -119,7 +137,7 @@ if st.session_state.logging_enabled and st.session_state.logging_start_time:
 else:
     st.markdown("🔴 Logging Inactive")
 
-# ---------------- IMAGE + CLICK ----------------
+# ---------------- IMAGE LOADING ----------------
 if not os.path.exists(IMAGE_FILE):
     st.error(f"Missing image: {IMAGE_FILE}")
     st.stop()
@@ -128,7 +146,7 @@ image = Image.open(IMAGE_FILE).convert("RGBA")
 image_width, image_height = image.size
 image_with_dots = draw_dots(image, st.session_state.emotions)
 
-# Show with axis labels
+# ---------------- IMAGE + CLICK TRACKING ----------------
 left_col, image_col, right_col = st.columns([1, 8, 1])
 with left_col:
     st.markdown("<div style='height: 100%; display: flex; align-items: center; justify-content: center; transform: rotate(-90deg); font-weight: bold;'>Arousal</div>", unsafe_allow_html=True)
@@ -156,12 +174,11 @@ st.markdown("### 📁 Logged Emotions")
 st.dataframe(df, use_container_width=True)
 
 # Save CSV and PNG to export folder
-export_dir = os.path.join("export")
-os.makedirs(export_dir, exist_ok=True)
+os.makedirs(EXPORT_FOLDER, exist_ok=True)
 
 filename_base = os.path.splitext(st.session_state.current_song)[0]
-csv_path = os.path.join(export_dir, f"{filename_base}_log.csv")
-png_path = os.path.join(export_dir, f"{filename_base}_grid_dots.png")
+csv_path = os.path.join(EXPORT_FOLDER, f"{filename_base}_log.csv")
+png_path = os.path.join(EXPORT_FOLDER, f"{filename_base}_grid_dots.png")
 
 df.to_csv(csv_path, index=False)
 image_with_dots.save(png_path)
@@ -175,7 +192,7 @@ st.download_button(
 )
 
 st.download_button(
-    label="🖼️ Download Grid Image with Dots (PNG)",
+    label="🖼️ Download Grid Image with Blue Dots",
     data=open(png_path, "rb").read(),
     file_name=os.path.basename(png_path),
     mime="image/png"
