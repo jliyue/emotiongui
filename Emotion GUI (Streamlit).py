@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER — STABLE IMAGE CLICK VERSION
+# STREAMLIT EMOTION LOGGER — STABLE IMAGE CLICK VERSION WITH SYNCED AUDIO
 import streamlit as st
 import os
 import random
@@ -8,13 +8,14 @@ from datetime import timedelta
 from PIL import Image, ImageDraw
 from streamlit_autorefresh import st_autorefresh
 from streamlit_image_coordinates import streamlit_image_coordinates
+import streamlit.components.v1 as components
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
 IMAGE_FILE = "photo.png"
 DOT_RADIUS = 5
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (No Canvas, Image-Based)")
+st.title("🎧 Arousal-Valence Emotion Logger (Synced Audio & Grid)")
 
 # ---------------- SESSION STATE ----------------
 for key, default in {
@@ -44,6 +45,27 @@ def get_quadrant(x, y):
         return "Blue"
     return "Unknown"
 
+def play_audio():
+    components.html("""
+        <script>
+            const audio = document.getElementById("audio-player");
+            if (audio) {
+                audio.currentTime = 0;
+                audio.play();
+            }
+        </script>
+    """, height=0)
+
+def pause_audio():
+    components.html("""
+        <script>
+            const audio = document.getElementById("audio-player");
+            if (audio) {
+                audio.pause();
+            }
+        </script>
+    """, height=0)
+
 # ---------------- PARTICIPANT ID ----------------
 st.session_state.participant_id = st.text_input("Enter Participant ID:", st.session_state.participant_id)
 
@@ -63,24 +85,33 @@ if not st.session_state.current_song and remaining:
     st.session_state.logging_enabled = False
     st.session_state.logging_start_time = None
 
-# ---------------- AUDIO ----------------
+# ---------------- AUDIO INJECTION ----------------
 if st.session_state.current_song:
+    audio_path = os.path.join(AUDIO_FOLDER, st.session_state.current_song)
     st.markdown(f"### 🎶 Now Playing: `{st.session_state.current_song}`")
-    with open(os.path.join(AUDIO_FOLDER, st.session_state.current_song), "rb") as f:
-        st.audio(f.read(), format="audio/mp3")
-    st.success(f"🎵 Playing — Time elapsed: {int(time.time() - st.session_state.song_start_time)}s")
+
+    components.html(f"""
+        <audio id="audio-player" src="{audio_path}" preload="auto"></audio>
+    """, height=0)
+
+    elapsed = time.time() - st.session_state.song_start_time
+    st.success(f"🎵 Ready — Time elapsed: {int(elapsed)}s")
 
 # ---------------- LOGGING CONTROLS ----------------
 col1, col2, col3 = st.columns(3)
 with col1:
-    if st.button("▶️ Start Logging"):
+    if st.button("▶️ Start Logging + Play Audio"):
         st.session_state.logging_enabled = True
         st.session_state.logging_start_time = time.time()
-        st.toast("✅ Logging started!", icon="🟢")
+        play_audio()
+        st.toast("✅ Logging started & audio playing!", icon="🟢")
+
 with col2:
-    if st.button("⏹ Stop Logging"):
+    if st.button("⏹ Stop Logging + Pause Audio"):
         st.session_state.logging_enabled = False
-        st.toast("🛑 Logging stopped.")
+        pause_audio()
+        st.toast("🛑 Logging stopped & audio paused.", icon="🔴")
+
 with col3:
     if st.button("🧹 Reset Log"):
         st.session_state.emotions = []
@@ -93,7 +124,7 @@ if st.session_state.logging_enabled:
 else:
     st.markdown("🔴 Logging Inactive")
 
-# ---------------- IMAGE + CLICK ----------------
+# ---------------- IMAGE + AXIS LABELS + CLICK ----------------
 if not os.path.exists(IMAGE_FILE):
     st.error(f"Missing image: {IMAGE_FILE}")
     st.stop()
@@ -109,10 +140,15 @@ for _, _, val, aro, _ in st.session_state.emotions:
     y = int((1 - (aro + 1) / 2) * image_height)
     draw.ellipse([x - DOT_RADIUS, y - DOT_RADIUS, x + DOT_RADIUS, y + DOT_RADIUS], fill="red")
 
-# Click detection via streamlit-image-coordinates
-st.markdown("### 🎯 Click the grid to log emotion")
-coords = streamlit_image_coordinates(display_image, key="avgrid")
+# Layout with axis labels
+left_col, image_col, right_col = st.columns([1, 8, 1])
+with left_col:
+    st.markdown("<div style='height: 100%; display: flex; align-items: center; justify-content: center; transform: rotate(-90deg); font-weight: bold;'>Arousal</div>", unsafe_allow_html=True)
+with image_col:
+    coords = streamlit_image_coordinates(display_image, key="avgrid")
+st.markdown("<div style='text-align: center; font-weight: bold;'>Valence</div>", unsafe_allow_html=True)
 
+# ---------------- HANDLE CLICKS ----------------
 if coords and st.session_state.logging_enabled:
     x_px, y_px = coords["x"], coords["y"]
     val = round((x_px / image_width) * 2 - 1, 2)
