@@ -1,9 +1,5 @@
 streamlit
-pandas
-numpy
-plotly
-streamlit-autorefresh
-kaleido
-streamlit-plotly-events
 streamlit-drawable-canvas
 Pillow
+pandas
+numpy
