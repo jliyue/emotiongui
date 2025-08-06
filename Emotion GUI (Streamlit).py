@@ -1,21 +1,23 @@
-# STREAMLIT EMOTION LOGGER - CANVAS VERSION (REPLACES PLOTLY)
+# STREAMLIT EMOTION LOGGER - DEBUG VERSION WITH VISIBLE CLICK DOTS
 import streamlit as st
-from streamlit_drawable_canvas import st_canvas
-import pandas as pd
-import numpy as np
 import os
 import random
 import time
+import pandas as pd
+import numpy as np
 from datetime import timedelta
+import plotly.graph_objects as go
+from streamlit_plotly_events import plotly_events
+from streamlit_autorefresh import st_autorefresh
 
 # ---------------- CONFIG ----------------
 AUDIO_FOLDER = "song"
-CANVAS_SIZE = 500
+SONG_DURATION = 180  # in seconds
 
+# ---------------- SESSION STATE ----------------
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Canvas Version)")
+st.title("🎧 Arousal-Valence Emotion Logger (Debug Click Grid)")
 
-# ---------------- SESSION STATE INIT ----------------
 for key, default in {
     "played_songs": [],
     "current_song": None,
@@ -28,7 +30,15 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
+# ---------------- PARTICIPANT ID ----------------
+st.session_state.participant_id = st.text_input("Enter Participant ID:", st.session_state.participant_id)
+
 # ---------------- HELPERS ----------------
+def extract_number(filename):
+    import re
+    match = re.search(r"(\d+)", filename)
+    return int(match.group(1)) if match else float("inf")
+
 def format_duration(seconds):
     return str(timedelta(seconds=int(seconds)))
 
@@ -43,15 +53,12 @@ def get_quadrant(x, y):
         return "Blue"
     return "Unknown"
 
-# ---------------- PARTICIPANT ID ----------------
-st.session_state.participant_id = st.text_input("Enter Participant ID:", st.session_state.participant_id)
-
 # ---------------- SONG LOAD ----------------
 if not os.path.exists(AUDIO_FOLDER):
     st.error(f"Missing audio folder: {AUDIO_FOLDER}")
     st.stop()
 
-songs = sorted([f for f in os.listdir(AUDIO_FOLDER) if f.endswith((".mp3", ".wav"))])
+songs = sorted([f for f in os.listdir(AUDIO_FOLDER) if f.endswith((".mp3", ".wav"))], key=extract_number)
 remaining = list(set(songs) - set(st.session_state.played_songs))
 
 if not st.session_state.current_song and remaining:
@@ -68,67 +75,116 @@ if st.session_state.current_song:
     with open(os.path.join(AUDIO_FOLDER, st.session_state.current_song), "rb") as f:
         audio_bytes = f.read()
     st.audio(audio_bytes, format="audio/mp3")
+
     elapsed = time.time() - st.session_state.song_start_time
     st.success(f"🎵 Playing — Time elapsed: {int(elapsed)}s")
 
-# ---------------- START / STOP ----------------
+# ---------------- START / STOP LOGGING ----------------
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("▶️ Start Logging"):
         st.session_state.logging_enabled = True
         st.session_state.logging_start_time = time.time()
         st.toast("✅ Logging started!", icon="🟢")
+
 with col2:
     if st.button("⏹ Stop Logging"):
         st.session_state.logging_enabled = False
         st.toast("⏹ Logging stopped.", icon="🔴")
+
 with col3:
-    if st.button("🧹 Reset Log"):
+    if st.button("🧹 Reset Emotions Log"):
         st.session_state.emotions = []
-        st.toast("🧽 Emotion log cleared")
+        st.toast("🗑️ Emotion log cleared.", icon="⚪️")
 
-# ---------------- TIMER ----------------
+# ---------------- LOGGING STATUS ----------------
 if st.session_state.logging_enabled and st.session_state.logging_start_time:
-    elapsed = time.time() - st.session_state.logging_start_time
-    st.markdown(f"🟢 **Logging Active** — Duration: `{format_duration(elapsed)}`")
+    elapsed_log = time.time() - st.session_state.logging_start_time
+    st_autorefresh(interval=1000, key="logging_refresh")
+    st.markdown(f"🟢 **Logging Active** — Duration: `{format_duration(elapsed_log)}`")
 else:
-    st.markdown("🔴 **Logging Inactive**")
+    st.markdown("🔴 **Logging Inactive** — Press 'Start Logging' to begin.")
 
-# ---------------- CANVAS ----------------
-st.markdown("### 🎨 Click Anywhere on the Grid to Log an Emotion")
+# ---------------- EMOTION LOGGER PLOT ----------------
+fig = go.Figure()
 
-canvas_result = st_canvas(
-    fill_color="rgba(0, 0, 0, 0)",  # Transparent fill
-    stroke_width=0,
-    background_color="#ffffff",
-    update_streamlit=True,
-    height=CANVAS_SIZE,
-    width=CANVAS_SIZE,
-    drawing_mode="point",
-    key="emotion_canvas",
+# Quadrants
+fig.add_shape(type="rect", x0=0, y0=0, x1=1, y1=1, fillcolor="green", opacity=0.3, line=dict(width=0))
+fig.add_shape(type="rect", x0=-1, y0=0, x1=0, y1=1, fillcolor="yellow", opacity=0.3, line=dict(width=0))
+fig.add_shape(type="rect", x0=-1, y0=-1, x1=0, y1=0, fillcolor="red", opacity=0.3, line=dict(width=0))
+fig.add_shape(type="rect", x0=0, y0=-1, x1=1, y1=0, fillcolor="blue", opacity=0.3, line=dict(width=0))
+fig.add_shape(type="line", x0=-1, y0=0, x1=1, y1=0, line=dict(color="black", width=2))
+fig.add_shape(type="line", x0=0, y0=-1, x1=0, y1=1, line=dict(color="black", width=2))
+
+# Emotion labels
+labels = [("Excited", 67), ("Delighted", 45), ("Happy", 22), ("Content", -22),
+          ("Relaxed", -45), ("Calm", -67), ("Tired", -113), ("Bored", -135),
+          ("Depressed", -158), ("Frustrated", 158), ("Angry", 135), ("Tense", 113)]
+r = 0.9
+for label, angle in labels:
+    x = r * np.cos(np.radians(angle))
+    y = r * np.sin(np.radians(angle))
+    fig.add_trace(go.Scatter(x=[x], y=[y], text=[label], mode="text"))
+
+# ✅ VISIBLE DEBUG GRID — RED DOTS
+x_vals = np.linspace(-1, 1, 80)
+y_vals = np.linspace(-1, 1, 80)
+xx, yy = np.meshgrid(x_vals, y_vals)
+click_grid = go.Scatter(
+    x=xx.flatten(),
+    y=yy.flatten(),
+    mode="markers",
+    marker=dict(size=12, color="red", opacity=1),
+    hoverinfo="none",
+    name="Click Grid",
+    showlegend=False
+)
+fig.add_trace(click_grid)
+
+# Logged points
+if st.session_state.emotions:
+    df = pd.DataFrame(
+        st.session_state.emotions,
+        columns=["Time", "Song", "Valence", "Arousal", "Quadrant"]
+    )
+    fig.add_trace(go.Scatter(
+        x=df["Valence"],
+        y=df["Arousal"],
+        mode="markers+text",
+        text=df["Time"],
+        marker=dict(size=10, color="black"),
+        name="Logged Emotions"
+    ))
+
+fig.update_layout(
+    width=600,
+    height=600,
+    dragmode=False,
+    hovermode=False,
+    xaxis=dict(range=[-1, 1], title="Valence", fixedrange=True),
+    yaxis=dict(range=[-1, 1], title="Arousal", fixedrange=True),
+    title="Click to Log Emotions"
 )
 
-# ---------------- HANDLE CLICKS ----------------
-if canvas_result.json_data and st.session_state.logging_enabled:
-    objects = canvas_result.json_data["objects"]
-    if objects:
-        last_point = objects[-1]
-        x_px = last_point["left"]
-        y_px = last_point["top"]
+# DISPLAY PLOT & CAPTURE CLICKS
+results = plotly_events(fig, click_event=True)
+st.write("📌 Debug Click Results:", results)  # ← This should show a list of click dicts
 
-        # Convert to Valence-Arousal range (-1 to 1)
-        valence = round((x_px / CANVAS_SIZE) * 2 - 1, 2)
-        arousal = round(-((y_px / CANVAS_SIZE) * 2 - 1), 2)  # Flip Y-axis
+# ---------------- LOGGING CLICKS ----------------
+if results and st.session_state.logging_enabled:
+    try:
+        x, y = results[0]["x"], results[0]["y"]
+        log_time = time.time() - st.session_state.logging_start_time
+        t = format_duration(log_time)
+        q = get_quadrant(x, y)
+        st.session_state.emotions.append((t, st.session_state.current_song, x, y, q))
+        st.toast(f"✅ Logged at {t} — Quadrant: {q}", icon="🟢")
+    except Exception as e:
+        st.error(f"❌ Error logging click: {e}")
 
-        t = format_duration(time.time() - st.session_state.logging_start_time)
-        q = get_quadrant(valence, arousal)
-
-        st.session_state.emotions.append((t, st.session_state.current_song, valence, arousal, q))
-        st.toast(f"✅ Logged: Valence={valence}, Arousal={arousal}, Quadrant={q}")
-
-# ---------------- DATA TABLE & DOWNLOAD ----------------
+# ---------------- EXPORT SECTION ----------------
 st.markdown("---")
-st.markdown("### 📁 Logged Emotions")
+st.markdown("### 📁 Export Emotion Data")
 
 df = pd.DataFrame(
     st.session_state.emotions,
@@ -145,10 +201,14 @@ st.download_button(
     data=csv_data,
     file_name=f"{filename_base}_emotions.csv",
     mime="text/csv",
-    disabled=df.empty
+    disabled=df.empty,
+    help="Download the logged emotion data as a CSV file"
 )
 
-# ---------------- NEXT SONG ----------------
+if df.empty:
+    st.info("ℹ️ No data yet — click on the chart to log an emotion.")
+
+# ---------------- NEXT SONG BUTTON ----------------
 if st.session_state.current_song and len(st.session_state.played_songs) < len(songs):
     if st.button("▶️ Next Song"):
         st.session_state.played_songs.append(st.session_state.current_song)
