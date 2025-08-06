@@ -94,9 +94,12 @@ with col2:
 # ---------------- LOGGING STATUS ----------------
 if st.session_state.logging_enabled and st.session_state.logging_start_time:
     elapsed_log = time.time() - st.session_state.logging_start_time
+    st_autorefresh(interval=1000, key="logging_refresh")
     st.markdown(f"🟢 **Logging Active** — Duration: `{format_duration(elapsed_log)}`")
 else:
     st.markdown("🔴 **Logging Inactive** — Press 'Start Logging' to begin.")
+# Refresh every 1 second while logging is active
+
 
 # ---------------- EMOTION LOGGER PLOT ----------------
 fig = go.Figure()
