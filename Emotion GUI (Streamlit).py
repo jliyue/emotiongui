@@ -1,4 +1,4 @@
-# STREAMLIT EMOTION LOGGER - FINAL BASE64 VERSION WITH DOTS
+# STREAMLIT EMOTION LOGGER - FINAL FIXED VERSION (DOTS DRAWN ON IMAGE)
 import streamlit as st
 import os
 import random
@@ -8,7 +8,7 @@ import numpy as np
 from datetime import timedelta
 from streamlit_drawable_canvas import st_canvas
 from streamlit_autorefresh import st_autorefresh
-from PIL import Image
+from PIL import Image, ImageDraw
 import io
 import base64
 
@@ -16,7 +16,7 @@ import base64
 AUDIO_FOLDER = "song"
 BACKGROUND_IMAGE_PATH = "photo.png"
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger (Canvas with Grid & Dots)")
+st.title("🎧 Arousal-Valence Emotion Logger (Canvas with Dots)")
 
 # ---------------- SESSION STATE INIT ----------------
 for key, default in {
@@ -98,40 +98,33 @@ if st.session_state.logging_enabled and st.session_state.logging_start_time:
 else:
     st.markdown("🔴 **Logging Inactive**")
 
-# ---------------- LOAD IMAGE AND BASE64 ENCODE ----------------
+# ---------------- LOAD IMAGE AND DRAW DOTS ----------------
 if not os.path.exists(BACKGROUND_IMAGE_PATH):
     st.error(f"Missing background image: {BACKGROUND_IMAGE_PATH}")
     st.stop()
 
-with open(BACKGROUND_IMAGE_PATH, "rb") as f:
-    image_bytes = f.read()
-
-# Get base64 image URL
-image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-image_url = f"data:image/png;base64,{image_base64}"
-
-# Get image dimensions from PIL
-image = Image.open(io.BytesIO(image_bytes))
+# Load and convert image
+image = Image.open(BACKGROUND_IMAGE_PATH).convert("RGBA")
 image_width, image_height = image.size
+
+# Draw red dots on copy of image
+image_with_dots = image.copy()
+draw = ImageDraw.Draw(image_with_dots)
+dot_radius = 4
+
+for _, _, val, aro, _ in st.session_state.emotions:
+    x = int((val + 1) / 2 * image_width)
+    y = int((1 - ((aro + 1) / 2)) * image_height)
+    draw.ellipse((x - dot_radius, y - dot_radius, x + dot_radius, y + dot_radius), fill="red")
+
+# Convert final image to base64 URL
+buf = io.BytesIO()
+image_with_dots.save(buf, format="PNG")
+image_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+image_url = f"data:image/png;base64,{image_base64}"
 
 # ---------------- CANVAS ----------------
 st.markdown("### 🎨 Click to Log Emotion")
-
-# Draw previously logged dots by overlaying fake markers
-canvas_dots = []
-dot_radius = 4
-for _, _, val, aro, _ in st.session_state.emotions:
-    x = (val + 1) / 2 * image_width
-    y = (1 - ((aro + 1) / 2)) * image_height
-    canvas_dots.append({
-        "type": "circle",
-        "left": x - dot_radius,
-        "top": y - dot_radius,
-        "width": dot_radius * 2,
-        "height": dot_radius * 2,
-        "fill": "red",
-        "stroke": None
-    })
 
 canvas_result = st_canvas(
     fill_color="rgba(0, 0, 0, 0)",
@@ -140,7 +133,6 @@ canvas_result = st_canvas(
     update_streamlit=True,
     height=image_height,
     width=image_width,
-    initial_drawing=canvas_dots,
     drawing_mode="point",
     key="emotion_canvas"
 )
@@ -159,7 +151,7 @@ if canvas_result.json_data and st.session_state.logging_enabled:
         t = format_duration(time.time() - st.session_state.logging_start_time)
         q = get_quadrant(valence, arousal)
 
-        # Only append if it's a new point
+        # Avoid duplicate log if same as last
         if len(st.session_state.emotions) == 0 or (valence, arousal) != (st.session_state.emotions[-1][2], st.session_state.emotions[-1][3]):
             st.session_state.emotions.append((t, st.session_state.current_song, valence, arousal, q))
             st.toast(f"✅ Logged: Valence={valence}, Arousal={arousal}, Quadrant={q}")
