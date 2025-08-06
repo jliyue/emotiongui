@@ -7,6 +7,16 @@ import pandas as pd
 import numpy as np
 from datetime import timedelta
 from PIL import Image
+import io
+import streamlit.components.v1 as components
+
+# Load the image as a binary stream and reopen it
+with open("av_grid.png", "rb") as f:
+    image_bytes = f.read()
+
+# Re-open and convert to RGBA
+image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+
 from streamlit_drawable_canvas import st_canvas
 from streamlit_autorefresh import st_autorefresh
 
@@ -106,6 +116,12 @@ image = Image.open(BACKGROUND_IMAGE_PATH).convert("RGBA")
 
 # ---------------- CANVAS ----------------
 st.markdown("### 🎨 Click Anywhere on the Grid to Log an Emotion")
+
+with open("photo.png", "rb") as f:
+    image_bytes = f.read()
+
+# Re-open and convert to RGBA
+image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
 
 canvas_result = st_canvas(
     fill_color="rgba(0, 0, 0, 0)",  # Transparent
