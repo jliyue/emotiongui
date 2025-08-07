@@ -20,6 +20,18 @@ LOG_DURATION = 180  # seconds
 st.set_page_config(layout="wide")
 st.title("🎧 Arousal-Valence Emotion Logger (Auto Audio + Export)")
 
+st.markdown("### 🎧 Upload Your Audio File (MP3)")
+
+uploaded_audio = st.file_uploader("Upload MP3", type=["mp3"])
+
+if uploaded_audio:
+    st.session_state.current_song = uploaded_audio.name
+    audio_bytes = uploaded_audio.read()
+    st.audio(audio_bytes, format="audio/mp3")
+    st.session_state.uploaded_audio_data = audio_bytes  # Save for logging/playback
+else:
+    st.warning("Upload a valid MP3 file to begin.")
+
 # ---------------- SESSION STATE ----------------
 for key, default in {
     "played_songs": [],
@@ -108,11 +120,14 @@ st.info("ℹ️ The audio will start when you click ▶️ Start Logging.")
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("▶️ Start Logging + Play Audio"):
-        st.session_state.logging_enabled = True
-        st.session_state.logging_start_time = time.time()
-        st.session_state.auto_csv_ready = False
-        play_audio()
-        st.toast("✅ Logging started & audio playing!", icon="🟢")
+        if uploaded_audio:
+            st.session_state.logging_enabled = True
+            st.session_state.logging_start_time = time.time()
+            st.session_state.auto_csv_ready = False
+            st.toast("✅ Logging started with uploaded audio!", icon="🟢")
+        else:
+            st.warning("Please upload an audio file first.")
+
 
 with col2:
     if st.button("⏹ Stop Logging"):
@@ -176,7 +191,7 @@ st.dataframe(df, use_container_width=True)
 # Save CSV and PNG to export folder
 os.makedirs(EXPORT_FOLDER, exist_ok=True)
 
-filename_base = os.path.splitext(st.session_state.current_song)[0]
+filename_base = os.path.splitext(st.session_state.current_song or "uploaded_song")[0]
 csv_path = os.path.join(EXPORT_FOLDER, f"{filename_base}_log.csv")
 png_path = os.path.join(EXPORT_FOLDER, f"{filename_base}_grid_dots.png")
 
