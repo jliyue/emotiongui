@@ -35,7 +35,7 @@ song_urls = [
     "https://drive.google.com/uc?export=download&id=1nlrwDmMnqHvPBIu5tlq7r40ThRJp395d",
     "https://drive.google.com/uc?export=download&id=1maapzKvrnkVkpxw_pzdWn7BQTpUaVVgb",
     "https://drive.google.com/uc?export=download&id=1-0nLDaDUDtEIBF5G29Im0vEvb4_jWuAi",
-    "https://drive.google.com/uc?export=download&id=1c5D2VtW0qK173YDRmbAHIfm43u3EAcwq",
+    "https://drive.google.com/uc?export=download&id=1c5D2VtW0qK173YDRmbAHIfm43u3EAcq",
     "https://drive.google.com/uc?export=download&id=1ojX8O5mVTA6IzM6ILt7ssp5suOrlL_c8",
     "https://drive.google.com/uc?export=download&id=14nSioRFinDaVVuUNLereCB2VtmYlPzLo",
     "https://drive.google.com/uc?export=download&id=1aTR1iSdcTsIZUfgZpameIRlYbget-GRq",
@@ -59,16 +59,28 @@ participant_id = st.text_input("Enter Participant ID:", value="anonymous")
 song_names = [f"Song {i+1}" for i in range(len(song_urls))]
 st.session_state.selected_song_index = st.selectbox("Choose Song", range(len(song_urls)), format_func=lambda i: song_names[i])
 
-# ---------------- AUDIO PLAYER ----------------
+# ---------------- AUDIO TIP + PLAYER ----------------
+st.markdown("""
+<div style='
+    background-color: #f9f9f9;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    margin-bottom: 1rem;
+'>
+    <strong>🎧 Tip:</strong> Please use <u>headphones</u> and adjust your volume before starting. Then press ▶️ below to play the audio.
+</div>
+""", unsafe_allow_html=True)
+
 st.markdown(f"### ▶️ {song_names[st.session_state.selected_song_index]}")
 components.html(f"""
-<audio controls>
+<audio controls style='width: 100%; margin-bottom: 16px;'>
   <source src="{song_urls[st.session_state.selected_song_index]}" type="audio/mpeg">
   Your browser does not support the audio element.
 </audio>
 """, height=90)
 
-# ---------------- CONTROLS ----------------
+# ---------------- LOGGING CONTROLS ----------------
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("Start Logging"):
@@ -92,11 +104,11 @@ if st.session_state.logging_enabled and st.session_state.logging_start_time:
     elapsed = time.time() - st.session_state.logging_start_time
     st_autorefresh(interval=1000, key="refresh_timer")
     percent_complete = min(elapsed / LOG_DURATION, 1.0)
-    st.progress(percent_complete, text=f"{int(elapsed)}s / 180s")
+    st.progress(percent_complete, text=f"{int(elapsed)}s / {LOG_DURATION}s")
 else:
     st.markdown("🔴 Logging Inactive")
 
-# ---------------- IMAGE LOGGING ----------------
+# ---------------- LOAD + DRAW EMOTION MAP ----------------
 if not os.path.exists(IMAGE_FILE):
     st.error("Missing emotion grid image file.")
     st.stop()
@@ -114,17 +126,15 @@ def draw_dots(img, data):
 
 image_with_dots = draw_dots(image.copy(), st.session_state.emotions)
 
-# Show image + labels
+# ---------------- IMAGE LOGGER ----------------
 left, center, right = st.columns([1, 8, 1])
 with left:
     st.markdown("<div style='height: 100%; display: flex; align-items: center; justify-content: center; transform: rotate(-90deg); font-weight: bold;'>Arousal</div>", unsafe_allow_html=True)
-
 with center:
     coords = streamlit_image_coordinates(image_with_dots, key="emotion_grid")
-
 st.markdown("<div style='text-align: center; font-weight: bold;'>Valence</div>", unsafe_allow_html=True)
 
-# ---------------- HANDLE CLICKS ----------------
+# ---------------- CLICK TO LOG ----------------
 def get_quadrant(x, y):
     if x >= 0 and y >= 0:
         return "Green"
@@ -148,7 +158,7 @@ if coords and st.session_state.logging_enabled:
     st.session_state.emotions.append((t, song_names[st.session_state.selected_song_index], val, aro, q))
     st.toast(f"✅ Logged: Val={val}, Aro={aro}, Quadrant={q}")
 
-# ---------------- EXPORT ----------------
+# ---------------- EXPORT SECTION ----------------
 st.markdown("---")
 df = pd.DataFrame(
     st.session_state.emotions,
