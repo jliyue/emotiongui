@@ -10,7 +10,7 @@ from streamlit_autorefresh import st_autorefresh
 
 # ---------------- CONFIG ----------------
 IMAGE_FILE = "photo.png"
-AUDIO_FOLDER = "emotiongui/song"
+AUDIO_FOLDER = "song"
 EXPORT_FOLDER = "export"
 DOT_RADIUS = 5
 LOG_DURATION = 180
