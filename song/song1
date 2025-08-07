@@ -1,6 +1,0 @@
-# inside the song/ folder:
-cp some-working-file.mp3 song/test.mp3
-# replace selection logic with this:
-st.session_state.current_song = "test.mp3"
-
-
