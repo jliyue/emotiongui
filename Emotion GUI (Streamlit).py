@@ -1,4 +1,3 @@
-# EMOTION LOGGER — 21 Google Drive Songs + Manual Logging + Export
 import streamlit as st
 import os
 import time
@@ -16,7 +15,7 @@ DOT_RADIUS = 5
 LOG_DURATION = 180
 
 st.set_page_config(layout="wide")
-st.title("🎧 Arousal-Valence Emotion Logger — 21 Songs Edition")
+st.title("🎧 Arousal-Valence Emotion Logger — GitHub Audio Edition")
 
 # ---------------- SESSION STATE ----------------
 for key, default in {
@@ -29,30 +28,10 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
-# ---------------- SONG LINKS ----------------
-song_urls = [
-    "https://drive.google.com/uc?export=download&id=1YHgQcfXcs0L-ZbRQWZk9inWxWJqDiplT",
-    "https://drive.google.com/uc?export=download&id=1nlrwDmMnqHvPBIu5tlq7r40ThRJp395d",
-    "https://drive.google.com/uc?export=download&id=1maapzKvrnkVkpxw_pzdWn7BQTpUaVVgb",
-    "https://drive.google.com/uc?export=download&id=1-0nLDaDUDtEIBF5G29Im0vEvb4_jWuAi",
-    "https://drive.google.com/uc?export=download&id=1c5D2VtW0qK173YDRmbAHIfm43u3EAcq",
-    "https://drive.google.com/uc?export=download&id=1ojX8O5mVTA6IzM6ILt7ssp5suOrlL_c8",
-    "https://drive.google.com/uc?export=download&id=14nSioRFinDaVVuUNLereCB2VtmYlPzLo",
-    "https://drive.google.com/uc?export=download&id=1aTR1iSdcTsIZUfgZpameIRlYbget-GRq",
-    "https://drive.google.com/uc?export=download&id=1A40_NigxlyzTrqHo1_yhhTZPiijnoBAg",
-    "https://drive.google.com/uc?export=download&id=17-afTf_2xh3y0pdWu_PNg6aT3RWccd--",
-    "https://drive.google.com/uc?export=download&id=1fg61WMu3OAIlMxCS2hQPdAAJ5KKcsDrB",
-    "https://drive.google.com/uc?export=download&id=1LJ34xfyCoolKIEYEkqo5TtjYJiXAkels",
-    "https://drive.google.com/uc?export=download&id=1InaDyzOiVuGaREkRbSY1lynr-phgdTeu",
-    "https://drive.google.com/uc?export=download&id=1RKhtmByfUi-JXxU9kkUkSh5ZnoeMqhpo",
-    "https://drive.google.com/uc?export=download&id=1E6g_SU9fBbWlvpemfXqbsla9MQOfF03q",
-    "https://drive.google.com/uc?export=download&id=1Xrnkzftzk80Jvb1odpDrO-pIzcK-Y1cd",
-    "https://drive.google.com/uc?export=download&id=1Vxa5zXZtMeNLnNC7eBy3SCEQLV7YpW_a",
-    "https://drive.google.com/uc?export=download&id=1jjT-Q_BvjIX3EPa4Qr9WI6gkZ_P-wpih",
-    "https://drive.google.com/uc?export=download&id=1YbjRMOrUweXTTXVjzao_lR7qDSHGZKYP",
-    "https://drive.google.com/uc?export=download&id=1sdeRZa_lxGSPoi_eB6IXcXkgsedfNfWS",
-    "https://drive.google.com/uc?export=download&id=1zXb41sWN39rZrFBGQO8dKKFPiJVc56ly"
-]
+# ---------------- AUDIO FILES ON GITHUB ----------------
+base_url = "https://raw.githubusercontent.com/jliyue/emotiongui/main/Audio%20Files"
+song_filenames = [f"{i}.mp3" for i in range(1, 22)]
+song_urls = [f"{base_url}/{name}" for name in song_filenames]
 
 # ---------------- PARTICIPANT ID + SONG SELECT ----------------
 participant_id = st.text_input("Enter Participant ID:", value="anonymous")
@@ -88,6 +67,7 @@ with col1:
         st.session_state.logging_start_time = time.time()
         st.session_state.auto_csv_ready = False
 
+        # Scroll to the player (optional smooth UX)
         components.html("""
             <script>
                 const player = document.querySelector('audio');
@@ -98,7 +78,6 @@ with col1:
         """, height=0)
 
         st.toast("✅ Logging started — press ▶️ to play audio.", icon="🟢")
-
 
 with col2:
     if st.button("Stop Logging"):
