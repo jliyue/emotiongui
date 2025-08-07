@@ -1,4 +1,4 @@
-# EMOTION LOGGER — Upload Audio + Manual Playback + Export
+# EMOTION LOGGER — Upload Audio OR Use Songs Folder + Export
 import streamlit as st
 import os
 import time
@@ -10,12 +10,13 @@ from streamlit_autorefresh import st_autorefresh
 
 # ---------------- CONFIG ----------------
 IMAGE_FILE = "photo.png"
+AUDIO_FOLDER = "emotiongui/song"
 EXPORT_FOLDER = "export"
 DOT_RADIUS = 5
 LOG_DURATION = 180
 
 st.set_page_config(layout="wide")
-st.title("💡 Arousal-Valence Emotion Logger (Upload Audio + Export)")
+st.title("💡 Arousal-Valence Emotion Logger (Upload or Use Playlist)")
 
 # ---------------- SESSION STATE ----------------
 for key, default in {
@@ -24,7 +25,9 @@ for key, default in {
     "logging_start_time": None,
     "auto_csv_ready": False,
     "uploaded_audio_data": None,
-    "uploaded_audio_name": None
+    "uploaded_audio_name": None,
+    "song_index": 0,
+    "playlist_mode": False
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -32,29 +35,37 @@ for key, default in {
 # ---------------- PARTICIPANT ID ----------------
 participant_id = st.text_input("Enter Participant ID:", value="anonymous")
 
-# ---------------- AUDIO UPLOAD ----------------
-st.markdown("### 🎧 Upload Your Audio File (MP3)")
-uploaded_audio = st.file_uploader("Upload MP3", type=["mp3"])
+# ---------------- AUDIO UPLOAD OR PLAYLIST ----------------
+uploaded_audio = st.file_uploader("🎧 Upload your own MP3 or skip to use preloaded playlist:", type=["mp3"])
 
 if uploaded_audio:
     st.session_state.uploaded_audio_data = uploaded_audio.read()
     st.session_state.uploaded_audio_name = uploaded_audio.name
-    st.audio(st.session_state.uploaded_audio_data, format="audio/mp3")
-    st.info("ℹ️ After clicking **Start Logging**, press ▶️ in the audio player above to begin.")
+    st.session_state.playlist_mode = False
 else:
-    st.warning("Please upload an MP3 file to begin.")
+    songs = sorted([f for f in os.listdir(AUDIO_FOLDER) if f.endswith(".mp3")])
+    if songs:
+        st.session_state.playlist_mode = True
+        st.session_state.uploaded_audio_name = songs[st.session_state.song_index]
+        audio_path = os.path.join(AUDIO_FOLDER, st.session_state.uploaded_audio_name)
+        with open(audio_path, "rb") as f:
+            st.session_state.uploaded_audio_data = f.read()
+    else:
+        st.warning("Upload an MP3 file or add files to 'emotiongui/song' folder.")
+        st.stop()
+
+# ---------------- AUDIO PLAYER ----------------
+st.markdown(f"### 🎶 Now Playing: `{st.session_state.uploaded_audio_name}`")
+st.audio(st.session_state.uploaded_audio_data, format="audio/mp3")
 
 # ---------------- CONTROLS ----------------
 col1, col2, col3 = st.columns(3)
 with col1:
     if st.button("▶️ Start Logging"):
-        if uploaded_audio:
-            st.session_state.logging_enabled = True
-            st.session_state.logging_start_time = time.time()
-            st.session_state.auto_csv_ready = False
-            st.toast("✅ Logging started! Now press ▶️ above to play audio.", icon="🟢")
-        else:
-            st.warning("Upload an audio file first.")
+        st.session_state.logging_enabled = True
+        st.session_state.logging_start_time = time.time()
+        st.session_state.auto_csv_ready = False
+        st.toast("✅ Logging started!", icon="🟢")
 
 with col2:
     if st.button("⏹ Stop Logging"):
@@ -71,7 +82,7 @@ if st.session_state.logging_enabled and st.session_state.logging_start_time:
     elapsed = time.time() - st.session_state.logging_start_time
     st_autorefresh(interval=1000, key="refresh_timer")
     percent_complete = min(elapsed / LOG_DURATION, 1.0)
-    st.progress(percent_complete, text=f"{int(elapsed)}s / 180s")
+    st.progress(percent_complete, text=f"{int(elapsed)}s / {LOG_DURATION}s")
 
     if elapsed >= LOG_DURATION and not st.session_state.auto_csv_ready:
         st.session_state.auto_csv_ready = True
@@ -91,8 +102,8 @@ image_width, image_height = image.size
 def draw_dots(img, data):
     draw = ImageDraw.Draw(img)
     for _, _, val, aro, _ in data:
-        x = int((val + 1) / 2 * image.width)
-        y = int((1 - (aro + 1) / 2) * image.height)
+        x = int((val + 1) / 2 * img.width)
+        y = int((1 - (aro + 1) / 2) * img.height)
         draw.ellipse([x - DOT_RADIUS, y - DOT_RADIUS, x + DOT_RADIUS, y + DOT_RADIUS], fill="blue")
     return img
 
@@ -132,7 +143,7 @@ if coords and st.session_state.logging_enabled:
     st.session_state.emotions.append((t, st.session_state.uploaded_audio_name, val, aro, q))
     st.toast(f"✅ Logged: Val={val}, Aro={aro}, Quadrant={q}")
 
-# ---------------- EXPORT LOGS ----------------
+# ---------------- EXPORT ----------------
 st.markdown("---")
 df = pd.DataFrame(
     st.session_state.emotions,
@@ -141,9 +152,8 @@ df = pd.DataFrame(
 st.markdown("### 📁 Logged Emotions")
 st.dataframe(df, use_container_width=True)
 
-# Save CSV + PNG
 os.makedirs(EXPORT_FOLDER, exist_ok=True)
-filename_base = os.path.splitext(st.session_state.uploaded_audio_name or "session")[0]
+filename_base = os.path.splitext(st.session_state.uploaded_audio_name)[0]
 csv_path = os.path.join(EXPORT_FOLDER, f"{filename_base}_log.csv")
 png_path = os.path.join(EXPORT_FOLDER, f"{filename_base}_dots.png")
 df.to_csv(csv_path, index=False)
@@ -151,3 +161,14 @@ image_with_dots.save(png_path)
 
 st.download_button("⬇️ Download CSV", open(csv_path, "rb").read(), file_name=os.path.basename(csv_path), mime="text/csv")
 st.download_button("🖼️ Download PNG Grid", open(png_path, "rb").read(), file_name=os.path.basename(png_path), mime="image/png")
+
+# ---------------- NEXT SONG ----------------
+if st.session_state.playlist_mode and st.session_state.song_index + 1 < len(songs):
+    if st.button("▶️ Next Song"):
+        st.session_state.song_index += 1
+        st.session_state.emotions = []
+        st.session_state.logging_enabled = False
+        st.session_state.logging_start_time = None
+        st.rerun()
+elif st.session_state.playlist_mode and st.session_state.song_index + 1 >= len(songs):
+    st.success("🎉 All songs completed! Thank you.")
