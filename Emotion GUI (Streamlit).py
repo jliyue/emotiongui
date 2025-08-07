@@ -87,7 +87,18 @@ with col1:
         st.session_state.logging_enabled = True
         st.session_state.logging_start_time = time.time()
         st.session_state.auto_csv_ready = False
+
+        components.html("""
+            <script>
+                const player = document.querySelector('audio');
+                if (player) {
+                    player.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            </script>
+        """, height=0)
+
         st.toast("✅ Logging started — press ▶️ to play audio.", icon="🟢")
+
 
 with col2:
     if st.button("Stop Logging"):
